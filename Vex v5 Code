@@ -1,0 +1,636 @@
+// This is the main control coade for the vex brain powring the main gaer system.
+
+#pragma region VEXcode Generated Robot Configuration
+// Make sure all required headers are included.
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <math.h>
+#include <string.h>
+
+
+#include "vex.h"
+
+using namespace vex;
+
+// Brain should be defined by default
+brain Brain;
+
+
+// START V5 MACROS
+#define waitUntil(condition)                                                   \
+  do {                                                                         \
+    wait(5, msec);                                                             \
+  } while (!(condition))
+
+#define repeat(iterations)                                                     \
+  for (int iterator = 0; iterator < iterations; iterator++)
+// END V5 MACROS
+
+
+// Robot configuration code.
+motor Motor1 = motor(PORT1, ratio18_1, false);
+
+motor Motor2 = motor(PORT2, ratio18_1, false);
+
+motor Motor3 = motor(PORT3, ratio18_1, false);
+
+motor Motor4 = motor(PORT4, ratio18_1, false);
+
+light LightC = light(Brain.ThreeWirePort.C);
+light LightD = light(Brain.ThreeWirePort.D);
+pot PotentiometerE = pot(Brain.ThreeWirePort.E);
+digital_in DigitalInA = digital_in(Brain.ThreeWirePort.A);
+digital_out DigitalOutB = digital_out(Brain.ThreeWirePort.B);
+digital_out DigitalOutF = digital_out(Brain.ThreeWirePort.F);
+encoder EncoderA = encoder(Brain.ThreeWirePort.G);
+
+
+// generating and setting random seed
+void initializeRandomSeed(){
+  int systemTime = Brain.Timer.systemHighResolution();
+  double batteryCurrent = Brain.Battery.current();
+  double batteryVoltage = Brain.Battery.voltage(voltageUnits::mV);
+
+  // Combine these values into a single integer
+  int seed = int(batteryVoltage + batteryCurrent * 100) + systemTime;
+
+  // Set the seed
+  srand(seed);
+}
+
+
+
+void vexcodeInit() {
+
+  //Initializing random seed.
+  initializeRandomSeed(); 
+}
+
+
+// Helper to make playing sounds from the V5 in VEXcode easier and
+// keeps the code cleaner by making it clear what is happening.
+void playVexcodeSound(const char *soundName) {
+  printf("VEXPlaySound:%s\n", soundName);
+  wait(5, msec);
+}
+
+#pragma endregion VEXcode Generated Robot Configuration
+#pragma region VEXcode Generated Robot Configuration
+// Make sure all required headers are included.
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <math.h>
+#include <string.h>
+#include "vex.h"
+using namespace vex;
+
+int screenTimeout = 30000; 
+int lastActivityTime = 0;
+bool screenSleeping = false;
+
+enum ScreenState {
+  MAIN_MENU,
+  SETTINGS_MENU,
+  SETUP_MENU,
+  SETUP_RUNNING,   
+  DIAGNOSTICS_MENU
+};
+
+enum SetupPage {
+  SETUP_PAGE_1,
+  SETUP_PAGE_2,
+  SETUP_PAGE_3
+};
+
+SetupPage currentSetupPage = SETUP_PAGE_1;
+
+ScreenState currentScreen = MAIN_MENU;
+
+void drawMainMenu() {
+  Brain.Screen.clearScreen();
+  // Settings button
+  Brain.Screen.setFillColor(orange);
+  Brain.Screen.setPenColor(black);
+  Brain.Screen.drawRectangle(10, 0, 150, 80);
+  Brain.Screen.setCursor(2, 5);
+  Brain.Screen.print("Settings");
+  // Setup button
+  Brain.Screen.setFillColor(orange);
+  Brain.Screen.setPenColor(black);
+  Brain.Screen.drawRectangle(161, 0, 150, 80);
+  Brain.Screen.setCursor(2, 22);
+  Brain.Screen.print("Setup");
+  // Diagnostics button
+  Brain.Screen.setFillColor(orange);
+  Brain.Screen.setPenColor(black);
+  Brain.Screen.drawRectangle(312, 0, 150, 80);
+  Brain.Screen.setCursor(2, 35);
+  Brain.Screen.print("Diagnostics");
+}
+
+
+bool waitForEdge(digital_in &pin, bool level, int timeout_ms) {
+    int t = 0;
+    while(pin.value() == level) {
+        wait(1, msec);
+        t++;
+        if(t >= timeout_ms) return false;  // timeout
+    }
+    return true;
+}
+
+
+
+void drawBackButton() {
+  Brain.Screen.setFillColor(red);
+  Brain.Screen.setPenColor(black);
+  Brain.Screen.drawRectangle(0, 0, 80, 40);
+  Brain.Screen.setCursor(1, 2);
+  Brain.Screen.print("< Exit");
+}
+
+void drawSettingsMenu() {
+  Brain.Screen.clearScreen();
+  drawBackButton();
+  Brain.Screen.setCursor(5, 5);
+  Brain.Screen.setFillColor(black);
+  Brain.Screen.setPenColor(green);
+  Brain.Screen.print(" You achily thought there were setting lol");
+}
+
+void drawSetupMenu() {
+  Brain.Screen.clearScreen();
+  drawBackButton();
+  Brain.Screen.setFillColor(red);
+  Brain.Screen.setPenColor(yellow);
+  Brain.Screen.drawRectangle(150, 80, 180, 80);
+  Brain.Screen.setCursor(6, 18);
+  Brain.Screen.print("  Start setup");
+}
+
+void drawDiagnosticsMenu() {
+  Brain.Screen.clearScreen();
+  drawBackButton();
+  Brain.Screen.setPenColor(black);
+  // Left Motors Button
+  Brain.Screen.setFillColor(yellow);
+  Brain.Screen.setPenColor(black);
+  Brain.Screen.drawRectangle(75, 80, 160, 60);
+  Brain.Screen.setCursor(5, 14);
+  Brain.Screen.print("Left ");
+  // Right Motors Button
+  Brain.Screen.setFillColor(yellow);
+  Brain.Screen.setPenColor(black);
+  Brain.Screen.drawRectangle(260, 80, 160, 60);
+  Brain.Screen.setCursor(5, 32);
+  Brain.Screen.print("Right");
+  // Stop Button
+  Brain.Screen.setFillColor(yellow);
+  Brain.Screen.setPenColor(black);
+  Brain.Screen.drawRectangle(178, 15, 140, 40);
+  Brain.Screen.setCursor(2, 23);
+  Brain.Screen.print(" Stop");
+}
+
+void startsetup() {
+  Brain.Screen.clearScreen();
+  drawBackButton();
+
+  switch(currentSetupPage) {
+
+    case SETUP_PAGE_1:
+      Brain.Screen.setFillColor(black);
+      Brain.Screen.setPenColor(blue);
+      Brain.Screen.setCursor(4, 1);
+      Brain.Screen.print("Step 1:");
+      Brain.Screen.setCursor(6, 1);
+      Brain.Screen.print("Align solar panel horizontally");
+
+      Brain.Screen.setFillColor(blue);
+      Brain.Screen.drawRectangle(300, 200, 120, 40);
+      Brain.Screen.setCursor(11, 35);
+      Brain.Screen.setPenColor(black);
+      Brain.Screen.print("Next");
+      break;
+
+    case SETUP_PAGE_2:
+      Brain.Screen.setFillColor(black);
+      Brain.Screen.setPenColor(blue);
+      Brain.Screen.setCursor(4, 1);
+      Brain.Screen.print("Step 2:");
+      Brain.Screen.setCursor(6, 1);
+      Brain.Screen.print("Use Potecheomter to fine adjust solar panal");
+
+      Brain.Screen.setFillColor(blue);
+      Brain.Screen.drawRectangle(150, 200, 120, 40);
+      Brain.Screen.setCursor(11, 20);
+      Brain.Screen.setPenColor(black);
+      Brain.Screen.print("Back");
+
+      Brain.Screen.setFillColor(blue);
+      Brain.Screen.drawRectangle(300, 200, 120, 40);
+      Brain.Screen.setCursor(11, 35);
+      Brain.Screen.setPenColor(black);
+      Brain.Screen.print("Next");
+      break;
+
+    case SETUP_PAGE_3:
+      Brain.Screen.setFillColor(black);
+      Brain.Screen.setPenColor(blue);
+      EncoderA.setPosition(0, degrees);
+      Brain.Screen.setCursor(4, 1);
+      Brain.Screen.print("Step 3:");
+      Brain.Screen.setCursor(6, 1);
+      Brain.Screen.print("Setup complete!");
+
+      Brain.Screen.setFillColor(blue);
+      Brain.Screen.drawRectangle(150, 200, 120, 40);
+      Brain.Screen.setCursor(11, 20);
+      Brain.Screen.setPenColor(black);
+      Brain.Screen.print("Back");
+  }
+}
+
+
+void handleMainMenuTouch(int x, int y) {
+  // Settings button
+  if(x > 10 && x < 160 && y > 0 && y < 80) {
+    currentScreen = SETTINGS_MENU;
+    drawSettingsMenu();
+  }
+  // Setup button
+  if(x > 161 && x < 311 && y > 0 && y < 80) {
+    currentScreen = SETUP_MENU;
+    drawSetupMenu();
+  }
+  // Diagnostics button
+  if(x > 312 && x < 462 && y > 0 && y < 80) {
+    currentScreen = DIAGNOSTICS_MENU;
+    drawDiagnosticsMenu();
+  }
+}
+
+void handleSubmenuTouch(int x, int y) {
+  // Back button
+  if(x > 0 && x < 80 && y > 0 && y < 40) {
+    currentScreen = MAIN_MENU;
+    drawMainMenu();
+    return;
+  }
+  // Start Setup button 
+  if(currentScreen == SETUP_MENU &&
+     x > 150 && x < 330 &&
+     y > 80  && y < 160) {
+
+    currentScreen = SETUP_RUNNING;   
+    startsetup();                    
+    return;
+  }
+
+  if(currentScreen == SETUP_RUNNING) {
+  // Back to main setup menu
+  if(x > 0 && x < 80 && y > 0 && y < 40) {
+    currentScreen = SETUP_MENU;
+    drawSetupMenu();
+    return;
+  }
+  // NEXT button
+  if(x > 300 && x < 420 && y > 200 && y < 240) {
+    if(currentSetupPage == SETUP_PAGE_1) currentSetupPage = SETUP_PAGE_2;
+    else if(currentSetupPage == SETUP_PAGE_2) currentSetupPage = SETUP_PAGE_3;
+    startsetup();
+    return;
+  }
+  // BACK button (only on pages 2 and 3)
+  if(x > 150 && x < 270 && y > 200 && y < 240) {
+    if(currentSetupPage == SETUP_PAGE_2) currentSetupPage = SETUP_PAGE_1;
+    else if(currentSetupPage == SETUP_PAGE_3) currentSetupPage = SETUP_PAGE_2;
+    startsetup();
+    return;
+   }
+ }
+}
+
+void handleDiagnosticsTouch(int x, int y) {
+  // Back button
+  if(x > 0 && x < 80 && y > 0 && y < 40) {
+    currentScreen = MAIN_MENU;
+    drawMainMenu();
+    return;
+  }
+  // STOP button
+  if(x > 178 && x < 318 && y > 15 && y < 55) {
+    Motor1.stop();
+    Motor2.stop();
+    Motor3.stop();
+    Motor4.stop();
+    return;
+  }
+  // Left Motors button
+  if(x > 75 && x < 235 && y > 80 && y < 140) {
+    Motor1.spin(forward);
+    Motor2.spin(forward);
+    Motor3.spin(forward);
+    Motor4.spin(forward);
+    return;
+  }
+  // Right Motors button
+  if(x > 260 && x < 420 && y > 80 && y < 140) {
+    Motor1.spin(reverse);
+    Motor2.spin(reverse);
+    Motor3.spin(reverse);
+    Motor4.spin(reverse);
+    return;
+  }
+  // If touching anywhere else → stop motors
+  Motor1.stop();
+  Motor2.stop();
+  Motor3.stop();
+  Motor4.stop();
+}
+
+void updateDiagnosticsData() {
+
+  Brain.Screen.setCursor(9, 1);
+  Brain.Screen.clearLine();
+  Brain.Screen.setFillColor(black);
+  Brain.Screen.setPenColor(blue);
+  Brain.Screen.print("1 PWR:");
+  Brain.Screen.print(Motor1.power(watt));
+  Brain.Screen.print("W 1Cur:");
+  Brain.Screen.print(Motor1.current(amp));
+  Brain.Screen.print("A 1:");
+  Brain.Screen.print(Motor1.position(degrees));
+  Brain.Screen.print("deg 1Temp:");
+  Brain.Screen.print(Motor1.temperature(percent));
+  Brain.Screen.print("%");
+
+  Brain.Screen.setCursor(10, 1);
+  Brain.Screen.clearLine();
+  Brain.Screen.setFillColor(black);
+  Brain.Screen.setPenColor(green);
+  Brain.Screen.print("2 PWR:");
+  Brain.Screen.print(Motor2.power(watt));
+  Brain.Screen.print("W 2Cur:");
+  Brain.Screen.print(Motor2.current(amp));
+  Brain.Screen.print("A 2:");
+  Brain.Screen.print(Motor2.position(degrees));
+  Brain.Screen.print("deg 2Temp:");
+  Brain.Screen.print(Motor2.temperature(percent));
+  Brain.Screen.print("%");
+
+  Brain.Screen.setCursor(11, 1);
+  Brain.Screen.clearLine();
+  Brain.Screen.setFillColor(black);
+  Brain.Screen.setPenColor(orange);
+  Brain.Screen.print("3 PWR:");
+  Brain.Screen.print(Motor3.power(watt));
+  Brain.Screen.print("W 3Cur:");
+  Brain.Screen.print(Motor3.current(amp));
+  Brain.Screen.print("A 3:");
+  Brain.Screen.print(Motor3.position(degrees));
+  Brain.Screen.print("deg 3Temp:");
+  Brain.Screen.print(Motor3.temperature(percent));
+  Brain.Screen.print("%");
+
+  Brain.Screen.setCursor(12, 1);
+  Brain.Screen.clearLine();
+  Brain.Screen.setFillColor(black);
+  Brain.Screen.setPenColor(yellow);
+  Brain.Screen.print("4 PWR:");
+  Brain.Screen.print(Motor4.power(watt));
+  Brain.Screen.print("W 4Cur:");
+  Brain.Screen.print(Motor4.current(amp));
+  Brain.Screen.print("A 4:");
+  Brain.Screen.print(Motor4.position(degrees));
+  Brain.Screen.print("deg 4Temp:");
+  Brain.Screen.print(Motor4.temperature(percent));
+  Brain.Screen.print("%");
+
+  Brain.Screen.setFillColor(black);
+  Brain.Screen.setPenColor(purple);
+  Brain.Screen.setCursor(8, 1);
+  Brain.Screen.clearLine();
+  Brain.Screen.print("V:");
+  Brain.Screen.print(Brain.Battery.voltage(volt));
+  Brain.Screen.print(" AMP:");
+  Brain.Screen.print(Brain.Battery.current(amp));
+  Brain.Screen.print(" Photo1:");
+  Brain.Screen.print("%d", LightC.brightness());
+  Brain.Screen.print(" Photo2:");
+  Brain.Screen.print("%d", LightD.brightness());
+  Brain.Screen.print(" ENC:");
+  Brain.Screen.print(EncoderA.position(degrees));
+
+  Brain.Screen.setCursor(7, 1);
+  Brain.Screen.setFillColor(black);
+  Brain.Screen.setPenColor(cyan);
+  Brain.Screen.clearLine();
+  Brain.Screen.print("Pot:");
+  Brain.Screen.print(PotentiometerE.angle(percent));
+}
+
+void solorTacking() {
+  
+
+  int lightC = LightC.brightness();
+  int lightD = LightD.brightness();
+  int pos = EncoderA.position(degrees);
+
+  bool atRightLimit = pos >= 360;
+  bool atLeftLimit  = pos <= -360;
+
+  // --- MOVE RIGHT (toward +360) ---
+  if (lightC > lightD) {
+
+    if (!atRightLimit) {   // allow only if NOT at right limit
+      Motor1.spin(forward);
+      Motor2.spin(forward);
+      Motor3.spin(forward);
+      Motor4.spin(forward);
+    } else {
+      Motor1.stop();
+      Motor2.stop();
+      Motor3.stop();
+      Motor4.stop();
+    }
+  }
+
+  // --- MOVE LEFT (toward -360) ---
+  else if (lightC < lightD) {
+
+    if (!atLeftLimit) {    // allow only if NOT at left limit
+      Motor1.spin(reverse);
+      Motor2.spin(reverse);
+      Motor3.spin(reverse);
+      Motor4.spin(reverse);
+    } else {
+      Motor1.stop();
+      Motor2.stop();
+      Motor3.stop();
+      Motor4.stop();
+    }
+  }
+
+  // --- BOTH SENSORS BRIGHT OR EQUAL ---
+  else if (lightC > 78 && lightD > 78) {
+    Motor1.stop();
+    Motor2.stop();
+    Motor3.stop();
+    Motor4.stop();
+  }
+
+  else {
+    Motor1.stop();
+    Motor2.stop();
+    Motor3.stop();
+    Motor4.stop();
+  }
+}
+
+void wakeScreen() {
+  screenSleeping = false;
+
+  switch(currentScreen) {
+    case MAIN_MENU:
+      drawMainMenu();
+      break;
+
+    case SETTINGS_MENU:
+      drawSettingsMenu();
+      break;
+
+    case SETUP_MENU:
+      drawSetupMenu();
+      break;
+
+    case SETUP_RUNNING:   
+      startsetup();
+      break;
+
+    case DIAGNOSTICS_MENU:
+      drawDiagnosticsMenu();
+      break;
+  }
+}
+
+int main() {
+
+  wakeScreen();
+
+  lastActivityTime = Brain.Timer.system(); 
+
+  pwm_out ardrinoCommunication = pwm_out(Brain.ThreeWirePort.A);  
+  pwm_out ardrinoCommunication2 = pwm_out(Brain.ThreeWirePort.B);
+  
+
+  while(true) {
+
+    Brain.Screen.setFont(mono20);
+
+     double axleDegrees = EncoderA.position(degrees); 
+    
+    double axlePercent = (axleDegrees / 360.0) * 100.0;
+    
+    ardrinoCommunication.state(axlePercent, percent); 
+
+    float averageLight = (LightC.brightness() + LightD.brightness()) / 2.0; 
+
+    ardrinoCommunication2.state(averageLight, percent); 
+
+
+
+  
+    if(Brain.Screen.pressing()) {
+
+      int x = Brain.Screen.xPosition();
+      int y = Brain.Screen.yPosition();
+
+      lastActivityTime = Brain.Timer.system();
+
+      if(screenSleeping) {
+        wakeScreen();
+      } else {
+
+        switch(currentScreen) {
+
+         case MAIN_MENU:
+            handleMainMenuTouch(x, y);
+            break;
+
+         case SETTINGS_MENU:
+         case SETUP_MENU:
+           handleSubmenuTouch(x, y);
+           break;
+
+         case SETUP_RUNNING: 
+           handleSubmenuTouch(x, y);
+           break;
+
+         case DIAGNOSTICS_MENU:
+          if(Brain.Screen.pressing()) { 
+            handleDiagnosticsTouch(x, y);
+          } else {
+           Motor1.stop();
+           Motor2.stop();
+           Motor3.stop();
+           Motor4.stop();
+          }
+          
+          break;
+
+        }
+
+      }
+      wait(200, msec); 
+    }
+
+    if (currentScreen == DIAGNOSTICS_MENU && !screenSleeping) {
+      updateDiagnosticsData();
+    }
+
+    if (currentScreen == SETUP_RUNNING && currentSetupPage == SETUP_PAGE_2) {
+
+      int potValue = PotentiometerE.angle(percent);  
+      int diff = potValue - 50;                       
+      int steps = abs(diff);                       
+
+      if (diff > 0) {
+          
+          Motor1.spinFor(forward, steps, degrees, false);
+          Motor2.spinFor(forward, steps, degrees, false);
+          Motor3.spinFor(forward, steps, degrees, false);
+          Motor4.spinFor(forward, steps, degrees, true);
+      }
+      else if (diff < 0) {
+          
+          Motor1.spinFor(reverse, steps, degrees, false);
+          Motor2.spinFor(reverse, steps, degrees, false);
+          Motor3.spinFor(reverse, steps, degrees, false);
+          Motor4.spinFor(reverse, steps, degrees, true);
+      }
+      else {
+         
+          Motor1.stop();
+          Motor2.stop();
+          Motor3.stop();
+          Motor4.stop();
+      }
+    }
+
+    if((currentScreen == MAIN_MENU || currentScreen == SETTINGS_MENU || currentScreen == DIAGNOSTICS_MENU)){
+      solorTacking();
+    }
+
+    // Timeout sleep
+    if(!screenSleeping &&
+       Brain.Timer.system() - lastActivityTime > screenTimeout) {
+
+      screenSleeping = true;
+      Brain.Screen.clearScreen();
+    }
+    wait(20, msec);
+  }
+}

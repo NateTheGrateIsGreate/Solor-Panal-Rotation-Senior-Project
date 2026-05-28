@@ -1,0 +1,31 @@
+// This is the code for the output data to be converted so the rasbery pie can read clean valuse
+
+const int vexInputPin1 = 2;
+const int vexInputPin2 = 3;
+
+void setup() {
+  Serial.begin(9600);
+  pinMode(vexInputPin1, INPUT);
+  pinMode(vexInputPin2, INPUT); 
+}
+
+void loop() {
+
+  unsigned long pulseWidth1 = pulseIn(vexInputPin1, HIGH);
+  unsigned long pulseWidth2 = pulseIn(vexInputPin2, HIGH);
+
+
+  unsigned long constrainedPulse1 = constrain(pulseWidth1, 1000, 2000);\
+  unsigned long constrainedPulse2 = constrain(pulseWidth2, 1000, 2000);
+
+  int decodedValue1 = map(constrainedPulse1, 1000, 2000, -360, 360); //(360+   - -362)
+  int decodedValue2 = map(constrainedPulse2, 1000, 2000, 0, 100);  //(90+   -60)
+
+  Serial.println("Tilt angle");
+  Serial.println(decodedValue1);
+  Serial.println("Amout of sun");
+  Serial.println(decodedValue2);
+
+  delay(100);
+
+}
